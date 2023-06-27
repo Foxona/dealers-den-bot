@@ -1,12 +1,12 @@
 import * as TelegramBot from "node-telegram-bot-api";
 import * as Parser from "rss-parser";
-require('dotenv').config();
+require("dotenv").config();
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 
 if (!token) {
-    console.error("TELEGRAM_BOT_TOKEN is not set");
-    process.exit(1);
+  console.error("TELEGRAM_BOT_TOKEN is not set");
+  process.exit(1);
 }
 
 const bot = new TelegramBot(token, { polling: true });
@@ -81,10 +81,10 @@ const feeds = [
   },
 ];
 
+const baseURL = "https://thedealersden.com";
+
 const getFeed = async (feed: Feed) => {
-  return await parser.parseURL(
-    `https://www.thedealersden.com/rss/feed/${feed}`
-  );
+  return await parser.parseURL(`${baseURL}/rss/feed/${feed}`);
 };
 
 bot.onText(/\/echo (.+)/, (msg, match) => {
@@ -111,7 +111,68 @@ const addItemIfNotExists = (items, item) => {
   return false;
 };
 
+const mockData = [
+  {
+    title: "Cute Base Commission",
+    link: "https://www.thedealersden.com/listing/cute-base-commission/237711",
+    pubDate: "Mon, 26 Jun 2023 23:22:03 -0400",
+    guid: "https://www.thedealersden.com/listing/cute-base-commission/237711",
+    content:
+      '<p><img alt="Cute Base Commission" class="" src="/uploads/cache/Untitled35_20230508205630-200x200.png"></p>My First Commission! I will draw your fursona holding their favorite item! You can choose the background color as well!',
+    contentSnippet:
+      "My First Commission! I will draw your fursona holding their favorite item! You can choose the background color as well!",
+    categories: ["Artwork :: Originals"],
+    isoDate: "2023-06-27T03:22:03.000Z",
+  },
+  {
+    title: "Dino mask",
+    link: "https://www.thedealersden.com/listing/dino-mask/237710",
+    pubDate: "Mon, 26 Jun 2023 23:18:30 -0400",
+    guid: "https://www.thedealersden.com/listing/dino-mask/237710",
+    content:
+      '<p><img alt="Dino mask" class="" src="/uploads/cache/E07E65E9-2D7F-458C-8525-145BAB1F711F-200x200.jpeg"></p>Price lowered :)',
+    contentSnippet: "Price lowered :)",
+    categories: ["Fursuits :: Partial Suits"],
+    isoDate: "2023-06-27T03:18:30.000Z",
+  },
+];
+
+const getPhtoUrl = (content: string) => {
+  const regex = /src="([^"]*)"/g;
+  const match = regex.exec(content);
+  if (!match) return "";
+  return `${baseURL}${match[1]}`;
+};
+
+const getItemCategories = (categories: string[]) => {
+  const category = categories[0];
+  if (!category) return "";
+  return category
+    .split("::") // split by :: to get the main category (e.g. Artwork)
+    .map((c) => `#${c.trim().replace(" ", "_")}`) // replace spaces with underscores and add # to the beginning
+    .join(", "); // join by comma
+};
+
+const sendItem = (item: CustomItem, chatId: number) => {
+  const photoUrl = getPhtoUrl(item.content);
+  if (!photoUrl) {
+    bot.sendMessage(chatId, `${item.title} - ${item.link}`);
+  } else {
+    bot.sendMediaGroup(chatId, [
+      {
+        type: "photo",
+        media: photoUrl,
+        caption: `${item.title}\n${item.link} 
+        \nCategories: ${getItemCategories(item.categories)}`,
+      },
+    ]);
+  }
+};
+
 let liveModeTimerId: NodeJS.Timer | null = null;
+type LiveModeItem = {
+  number: NodeJS.Timer;
+};
 
 const liveMode = (items_: CustomItem[], chatId: number) => {
   // check if polling is already running, and turn it off
@@ -130,7 +191,7 @@ const liveMode = (items_: CustomItem[], chatId: number) => {
     .slice(0, 3)
     .reverse()
     .forEach((item) => {
-      bot.sendMessage(chatId, `${item.title} - ${item.link}`);
+      sendItem(item, chatId);
     });
 
   // then set up polling
@@ -149,7 +210,7 @@ const liveMode = (items_: CustomItem[], chatId: number) => {
     newItems.forEach((ni) => seen.push(ni)); // add new items to seen
 
     for (const newItem of newItems) {
-      bot.sendMessage(chatId, `${newItem.title} - ${newItem.link}`);
+      sendItem(newItem, chatId);
     }
   }, 5000);
 };
@@ -166,15 +227,6 @@ bot.on("message", async (msg) => {
     const feed = await getFeed(feedType);
     const items = feed.items;
 
-    console.log(
-      items.map((i) => {
-        console.log(i.categories);
-        if (i.categories.filter((c) => c.includes("Fursuit")).length > 0) {
-          return i;
-        }
-      })
-    );
-
     bot.sendMessage(chatId, commandInfo.answerMessage);
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
@@ -186,10 +238,10 @@ bot.on("message", async (msg) => {
     }
 
     items.forEach((item) => {
-      bot.sendMessage(chatId, `${item.title} - ${item.link}`);
+      sendItem(item, chatId);
     });
   }
 
   // send a message to the chat acknowledging receipt of their message
-  bot.sendMessage(chatId, "Received your message");
+  // bot.sendMessage(chatId, "Received your message");
 });
