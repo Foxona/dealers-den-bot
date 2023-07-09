@@ -154,19 +154,11 @@ const getItemCategories = (categories: string[]) => {
 };
 
 const sendItem = (item: CustomItem, chatId: number) => {
-  const photoUrl = getPhtoUrl(item.content);
-  if (!photoUrl) {
-    bot.sendMessage(chatId, `${item.title} - ${item.link}`);
-  } else {
-    bot.sendMediaGroup(chatId, [
-      {
-        type: "photo",
-        media: photoUrl,
-        caption: `${item.title}\n${item.link} 
-        \nCategories: ${getItemCategories(item.categories)}`,
-      },
-    ]);
-  }
+  const message = `${item.title}\n${item.link} 
+  \nCategories: ${getItemCategories(item.categories)}`;
+
+  // const photoUrl = getPhtoUrl(item.content);
+  bot.sendMessage(chatId, message);
 };
 
 let liveModeTimerId: NodeJS.Timer | null = null;
@@ -215,10 +207,21 @@ const liveMode = (items_: CustomItem[], chatId: number) => {
   }, 5000);
 };
 
+const helpMessage = () => {
+  const commands = feeds.map((feed) => feed.command).join(", ");
+  return `Available commands: ${commands}`;
+};
+
 bot.on("message", async (msg) => {
+  console.log("Message received");
   const chatId = msg.chat.id;
+  bot.sendMessage(chatId, helpMessage());
   if (msg.entities && msg.entities[0].type === "bot_command") {
-    // console.log(msg);
+    if (msg.text === "/help") {
+      bot.sendChatAction(chatId, "typing");
+      return;
+    }
+    console.log("bot command received");
 
     const commandInfo = feeds.find((feed) => feed.command === msg.text);
     if (!commandInfo) return;
@@ -240,8 +243,29 @@ bot.on("message", async (msg) => {
     items.forEach((item) => {
       sendItem(item, chatId);
     });
+  } else {
+    bot.sendMessage(
+      chatId,
+      "I don't know what you mean. Tey /help for... Help?"
+    );
   }
 
   // send a message to the chat acknowledging receipt of their message
   // bot.sendMessage(chatId, "Received your message");
+});
+
+bot.on("sticker", (msg) => {
+  // console.log(msg);
+  console.log("Sticker received");
+  const chatId = msg.chat.id;
+  bot.sendMessage(chatId, "Are you trying to bully me? What if I like it?");
+  bot.sendSticker(
+    chatId,
+    "CAACAgIAAxkBAAIHRGSpTgvl4e32-udeSYQ_cTihXzdiAAIzKwACHUKASkXTTjAEbGd4LwQ"
+  );
+});
+
+bot.on("inline_query", (msg) => {
+  console.log("Inline query received");
+  console.log(msg);
 });
